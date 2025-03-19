@@ -16,6 +16,7 @@ inThisBuild(
     crossScalaVersions := Seq(scala213Version, scala3Version),
     developers := List(
       tlGitHubDev("igor-ramazanov", "Igor Ramazanov"),
+      tlGitHubDev("janina9395", "Janina Komarova"),
       tlGitHubDev("vlovgr", "Viktor Rudebeck")
     ),
     githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17")),
