@@ -14,7 +14,10 @@ val testcontainersVersion = "1.20.6"
 inThisBuild(
   Seq(
     crossScalaVersions := Seq(scala213Version, scala3Version),
-    developers := List(tlGitHubDev("vlovgr", "Viktor Rudebeck")),
+    developers := List(
+      tlGitHubDev("igor-ramazanov", "Igor Ramazanov"),
+      tlGitHubDev("vlovgr", "Viktor Rudebeck")
+    ),
     githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17")),
     licenses := Seq(License.Apache2),
     mimaBinaryIssueFilters += ProblemFilters.exclude[Problem]("spies.internal.*"),
