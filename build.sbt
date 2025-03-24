@@ -1,6 +1,6 @@
 import com.typesafe.tools.mima.core._
 
-val catsEffectVersion = "3.5.7"
+val catsEffectVersion = "3.6.0"
 val circeVersion = "0.14.12"
 val elasticacheJavaClusterClientVersion = "1.2.0"
 val munitCatsEffectVersion = "2.0.0"
