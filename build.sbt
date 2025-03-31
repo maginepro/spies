@@ -20,6 +20,7 @@ inThisBuild(
       tlGitHubDev("vlovgr", "Viktor Rudebeck")
     ),
     githubWorkflowJavaVersions := Seq(JavaSpec.temurin("17")),
+    githubWorkflowTargetBranches := Seq("**"),
     licenses := Seq(License.Apache2),
     mimaBinaryIssueFilters += ProblemFilters.exclude[Problem]("spies.internal.*"),
     organization := "com.magine",
