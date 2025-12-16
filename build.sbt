@@ -9,7 +9,7 @@ val scala213Version = "2.13.18"
 val scala3Version = "3.3.7"
 val scalaCheckEffectMunitVersion = "2.0.0-M2"
 val slf4jVersion = "2.0.17"
-val testcontainersVersion = "2.0.2"
+val testcontainersVersion = "2.0.3"
 
 inThisBuild(
   Seq(
