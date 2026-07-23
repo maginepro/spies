@@ -30,28 +30,28 @@ import spies.internal.future.*
 
 trait Memcached[F[_]] {
 
-  /**
-    * Gets the current value for the specified key,
-    * along with a function for updating the value
-    * and expiry.
-    *
-    * The returned function is using check-and-set,
-    * so it might not succeed. It returns `true` if
-    * the key was updated; `false` otherwise.
-    */
+  /*
+   * Gets the current value for the specified key,
+   * along with a function for updating the value
+   * and expiry.
+   *
+   * The returned function is using check-and-set,
+   * so it might not succeed. It returns `true` if
+   * the key was updated; `false` otherwise.
+   */
   def access[A](
     key: String
   )(
     implicit codec: Codec[A]
   ): F[(Option[A], (A, Duration) => F[Boolean])]
 
-  /**
-    * Sets the specified key to the provided value and
-    * expiry, but only if the key is currently unset.
-    *
-    * Returns `true` if the specified key was set to the
-    * provided value; `false` otherwise.
-    */
+  /*
+   * Sets the specified key to the provided value and
+   * expiry, but only if the key is currently unset.
+   *
+   * Returns `true` if the specified key was set to the
+   * provided value; `false` otherwise.
+   */
   def add[A](
     key: String,
     value: A,
@@ -60,36 +60,36 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Boolean]
 
-  /**
-    * Deletes the value for the specified key.
-    *
-    * Returns `true` if the key was set
-    * before deletion; `false` otherwise.
-    */
+  /*
+   * Deletes the value for the specified key.
+   *
+   * Returns `true` if the key was set
+   * before deletion; `false` otherwise.
+   */
   def delete(key: String): F[Boolean]
 
-  /**
-    * Gets the current value for the specified key.
-    *
-    * Returns `Some` with the current value, or
-    * `None` if the key is currently unset.
-    */
+  /*
+   * Gets the current value for the specified key.
+   *
+   * Returns `Some` with the current value, or
+   * `None` if the key is currently unset.
+   */
   def get[A](
     key: String
   )(
     implicit codec: Codec[A]
   ): F[Option[A]]
 
-  /**
-    * Gets the current value for the specified key,
-    * and sets a new value and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    *
-    * Returns `Some` with the current value, or
-    * `None` if the key is currently unset.
-    */
+  /*
+   * Gets the current value for the specified key,
+   * and sets a new value and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   *
+   * Returns `Some` with the current value, or
+   * `None` if the key is currently unset.
+   */
   def getAndSet[A](
     key: String,
     value: A,
@@ -98,17 +98,17 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Option[A]]
 
-  /**
-    * Gets the current value for the specified key,
-    * and updates it using the provided function
-    * and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    *
-    * Returns `Some` with the current value, or
-    * `None` if the key is currently unset.
-    */
+  /*
+   * Gets the current value for the specified key,
+   * and updates it using the provided function
+   * and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   *
+   * Returns `Some` with the current value, or
+   * `None` if the key is currently unset.
+   */
   def getAndUpdate[A](
     key: String,
     expiry: Duration
@@ -118,10 +118,10 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Option[A]]
 
-  /**
-    * Gets the current value for the specified key,
-    * or the default value if the key is unset.
-    */
+  /*
+   * Gets the current value for the specified key,
+   * or the default value if the key is unset.
+   */
   def getOrElse[A](
     key: String,
     default: => A
@@ -129,15 +129,15 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[A]
 
-  /**
-    * Updates the value for the specified key using
-    * the provided function and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    *
-    * Returns the value returned by the specified function.
-    */
+  /*
+   * Updates the value for the specified key using
+   * the provided function and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   *
+   * Returns the value returned by the specified function.
+   */
   def modify[A, B](
     key: String,
     expiry: Duration
@@ -147,20 +147,20 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[B]
 
-  /**
-    * Optionally updates the value for the specified
-    * key using the provided function and expiry.
-    *
-    * When the provided function returns `None`, no
-    * update will be performed. Similarly, when the
-    * function returns `Some`, the value will be
-    * updated to the returned value.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    *
-    * Returns the value returned by the specified function.
-    */
+  /*
+   * Optionally updates the value for the specified
+   * key using the provided function and expiry.
+   *
+   * When the provided function returns `None`, no
+   * update will be performed. Similarly, when the
+   * function returns `Some`, the value will be
+   * updated to the returned value.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   *
+   * Returns the value returned by the specified function.
+   */
   def modifyOption[A, B](
     key: String,
     expiry: Duration
@@ -170,21 +170,21 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[B]
 
-  /**
-    * Optionally updates the value for the specified
-    * key using the provided function and the expiry
-    * returned by the function.
-    *
-    * When the provided function returns `None`, no
-    * update will be performed. Similarly, when the
-    * function returns `Some`, the value will be
-    * updated to the returned value.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    *
-    * Returns the value returned by the specified function.
-    */
+  /*
+   * Optionally updates the value for the specified
+   * key using the provided function and the expiry
+   * returned by the function.
+   *
+   * When the provided function returns `None`, no
+   * update will be performed. Similarly, when the
+   * function returns `Some`, the value will be
+   * updated to the returned value.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   *
+   * Returns the value returned by the specified function.
+   */
   def modifyOption[A, B](
     key: String
   )(
@@ -193,9 +193,9 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[B]
 
-  /**
-    * Sets the specified key to the provided value and expiry.
-    */
+  /*
+   * Sets the specified key to the provided value and expiry.
+   */
   def set[A](
     key: String,
     value: A,
@@ -204,28 +204,28 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Unit]
 
-  /**
-    * Updates the expiry for the specified key.
-    *
-    * The function might not succeed if the key
-    * is unset.
-    *
-    * Returns `true` if the expiry was updated;
-    * `false` otherwise.
-    */
+  /*
+   * Updates the expiry for the specified key.
+   *
+   * The function might not succeed if the key
+   * is unset.
+   *
+   * Returns `true` if the expiry was updated;
+   * `false` otherwise.
+   */
   def touch(key: String, expiry: Duration): F[Boolean]
 
-  /**
-    * Updates the value for the specified key using
-    * the provided function and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might not succeed.
-    *
-    * Returns `Some` with the value returned by the
-    * provided function if the value was updated;
-    * `None` otherwise.
-    */
+  /*
+   * Updates the value for the specified key using
+   * the provided function and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might not succeed.
+   *
+   * Returns `Some` with the value returned by the
+   * provided function if the value was updated;
+   * `None` otherwise.
+   */
   def tryModify[A, B](
     key: String,
     expiry: Duration
@@ -235,16 +235,16 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Option[B]]
 
-  /**
-    * Updates the value for the specified key using
-    * the provided function and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might not succeed.
-    *
-    * Returns `true` if the value was updated;
-    * `false` otherwise.
-    */
+  /*
+   * Updates the value for the specified key using
+   * the provided function and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might not succeed.
+   *
+   * Returns `true` if the value was updated;
+   * `false` otherwise.
+   */
   def tryUpdate[A](
     key: String,
     expiry: Duration
@@ -254,13 +254,13 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Boolean]
 
-  /**
-    * Updates the value for the specified key using
-    * the provided function and expiry.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    */
+  /*
+   * Updates the value for the specified key using
+   * the provided function and expiry.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   */
   def update[A](
     key: String,
     expiry: Duration
@@ -270,18 +270,18 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Unit]
 
-  /**
-    * Optionally updates the value for the specified
-    * key using the provided function and expiry.
-    *
-    * When the provided function returns `None`, no
-    * update will be performed. Similarly, when the
-    * function returns `Some`, the value will be
-    * updated to the returned value.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    */
+  /*
+   * Optionally updates the value for the specified
+   * key using the provided function and expiry.
+   *
+   * When the provided function returns `None`, no
+   * update will be performed. Similarly, when the
+   * function returns `Some`, the value will be
+   * updated to the returned value.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   */
   def updateOption[A](
     key: String,
     expiry: Duration
@@ -291,19 +291,19 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Unit]
 
-  /**
-    * Optionally updates the value for the specified
-    * key using the provided function and the expiry
-    * returned by the function.
-    *
-    * When the provided function returns `None`, no
-    * update will be performed. Similarly, when the
-    * function returns `Some`, the value will be
-    * updated to the returned value.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    */
+  /*
+   * Optionally updates the value for the specified
+   * key using the provided function and the expiry
+   * returned by the function.
+   *
+   * When the provided function returns `None`, no
+   * update will be performed. Similarly, when the
+   * function returns `Some`, the value will be
+   * updated to the returned value.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   */
   def updateOption[A](
     key: String
   )(
@@ -312,14 +312,14 @@ trait Memcached[F[_]] {
     implicit codec: Codec[A]
   ): F[Unit]
 
-  /**
-    * Updates the value for the specified key
-    * using the provided function and expiry,
-    * returning the updated value.
-    *
-    * The function is using check-and-set, so it
-    * might be retried several times.
-    */
+  /*
+   * Updates the value for the specified key
+   * using the provided function and expiry,
+   * returning the updated value.
+   *
+   * The function is using check-and-set, so it
+   * might be retried several times.
+   */
   def updateAndGet[A](
     key: String,
     expiry: Duration

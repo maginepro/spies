@@ -31,22 +31,22 @@ private[spies] object expiry {
   ): F[Int] =
     F.realTimeInstant.flatMap(expiryTime(duration, _))
 
-  /**
-    * Returns an effect with an expiration value accepted by Memcached.
-    *
-    * If the duration could not be converted to a valid expiry time, a
-    * [[MemcachedError]] will be raised.
-    *
-    * Memcached uses second precision and duration values will be
-    * rounded down to the nearest second.
-    *
-    * - `Duration.Inf` and `Duration.Zero` are both treated as no expiry,
-    *   since Memcached uses `0` to denote no expiration.
-    * - `Duration.Undefined`, `Duration.MinusInf` and any other duration
-    *   less than 1 second results in a [[MemcachedError]].
-    * - Any duration which results in an epoch time which would exceed
-    *  `Int.MaxValue` also results in a [[MemcachedError]].
-    */
+  /*
+   * Returns an effect with an expiration value accepted by Memcached.
+   *
+   * If the duration could not be converted to a valid expiry time, a
+   * [[MemcachedError]] will be raised.
+   *
+   * Memcached uses second precision and duration values will be
+   * rounded down to the nearest second.
+   *
+   * - `Duration.Inf` and `Duration.Zero` are both treated as no expiry,
+   *   since Memcached uses `0` to denote no expiration.
+   * - `Duration.Undefined`, `Duration.MinusInf` and any other duration
+   *   less than 1 second results in a [[MemcachedError]].
+   * - Any duration which results in an epoch time which would exceed
+   *  `Int.MaxValue` also results in a [[MemcachedError]].
+   */
   def expiryTime[F[_]](
     duration: Duration,
     now: Instant
