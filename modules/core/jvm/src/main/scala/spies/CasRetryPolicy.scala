@@ -30,14 +30,30 @@ import scala.concurrent.duration.*
 final case class CasRetryPolicy(
   baseDelay: FiniteDuration,
   maxDelay: FiniteDuration,
-  timeout: FiniteDuration
-)
+  timeout: FiniteDuration,
+  jitter: () => Double
+) {
+
+  /**
+    * Delay before the next CAS retry, using exponential
+    * backoff with jitter, capped at `maxDelay`.
+    */
+  def delayFor(attempt: Int): FiniteDuration = {
+    val baseNanos = baseDelay.toNanos
+    val maxNanos = maxDelay.toNanos
+    val exponentialNanos = (baseNanos * math.pow(2.0, attempt.toDouble)).toLong
+    val cappedNanos = math.min(exponentialNanos, maxNanos)
+    val jitteredNanos = (cappedNanos * jitter()).toLong
+    FiniteDuration(jitteredNanos, NANOSECONDS)
+  }
+}
 
 object CasRetryPolicy {
   val default: CasRetryPolicy =
     CasRetryPolicy(
       baseDelay = 8.millis,
       maxDelay = 250.millis,
-      timeout = 2.seconds
+      timeout = 2.seconds,
+      jitter = () => 0.5
     )
 }

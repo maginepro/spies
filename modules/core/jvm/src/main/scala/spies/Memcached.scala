@@ -19,7 +19,6 @@ package spies
 import cats.effect.kernel.Async
 import cats.effect.kernel.Resource
 import cats.syntax.all.*
-import java.util.concurrent.ThreadLocalRandom
 import net.spy.memcached.*
 import net.spy.memcached.internal.GetFuture
 import net.spy.memcached.internal.OperationFuture
@@ -600,20 +599,6 @@ object Memcached {
           (fa.tupleRight(expiry), fb)
         }
 
-      /**
-        * Delay before the next CAS retry, using exponential
-        * backoff with full jitter, capped at `casRetryPolicy.maxDelay`.
-        */
-      private def casRetryDelay(attempt: Int): F[FiniteDuration] =
-        F.delay {
-          val baseNanos = casRetryPolicy.baseDelay.toNanos
-          val maxNanos = casRetryPolicy.maxDelay.toNanos
-          val exponentialNanos = (baseNanos * math.pow(2.0, attempt.toDouble)).toLong
-          val cappedNanos = math.min(exponentialNanos, maxNanos)
-          val jitteredNanos = (cappedNanos * ThreadLocalRandom.current().nextDouble()).toLong
-          FiniteDuration(jitteredNanos, NANOSECONDS)
-        }
-
       override def modifyOption[A, B](
         key: String
       )(
@@ -629,7 +614,7 @@ object Memcached {
                   case (Some((fa, expiry)), fb) =>
                     add(key, fa, expiry).flatMap {
                       case false =>
-                        casRetryDelay(attempt).flatMap(F.sleep).as(Left(attempt + 1))
+                        F.sleep(casRetryPolicy.delayFor(attempt)).as(Left(attempt + 1))
                       case true =>
                         F.pure(Right(fb))
                     }
@@ -643,7 +628,7 @@ object Memcached {
                   case (Some((fa, expiry)), fb) =>
                     sets(key, fa, expiry, casId).flatMap {
                       case false =>
-                        casRetryDelay(attempt).flatMap(F.sleep).as(Left(attempt + 1))
+                        F.sleep(casRetryPolicy.delayFor(attempt)).as(Left(attempt + 1))
                       case true =>
                         F.pure(Right(fb))
                     }
