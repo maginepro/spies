@@ -337,25 +337,49 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
-    ascii(addresses)
+    apply(addresses, CasRetryPolicy.default)
+
+  def apply[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    ascii(addresses, casRetryPolicy)
 
   def ascii[F[_]](
     addresses: String
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    ascii(addresses, CasRetryPolicy.default)
+
+  def ascii[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new DefaultConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def binary[F[_]](
     addresses: String
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    binary(addresses, CasRetryPolicy.default)
+
+  def binary[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new BinaryConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def builder[F[_]](
     addresses: String
@@ -364,9 +388,19 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    builder(addresses, CasRetryPolicy.default)(f)
+
+  def builder[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    f: ConnectionFactoryBuilder => ConnectionFactoryBuilder
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(f(new ConnectionFactoryBuilder)))
-      .flatMap(fromBuilder(addresses, _))
+      .flatMap(fromBuilder(addresses, _, casRetryPolicy))
 
   def fromBuilder[F[_]](
     addresses: String,
@@ -374,12 +408,29 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    fromBuilder(addresses, builder, CasRetryPolicy.default)
+
+  def fromBuilder[F[_]](
+    addresses: String,
+    builder: ConnectionFactoryBuilder,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(builder.build()))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def fromClient[F[_]](
     client: MemcachedClient
+  )(
+    implicit F: Async[F]
+  ): Memcached[F] =
+    fromClient(client, CasRetryPolicy.default)
+
+  def fromClient[F[_]](
+    client: MemcachedClient,
+    casRetryPolicy: CasRetryPolicy
   )(
     implicit F: Async[F]
   ): Memcached[F] =
@@ -549,23 +600,16 @@ object Memcached {
           (fa.tupleRight(expiry), fb)
         }
 
-      private val casRetryBaseDelay: FiniteDuration =
-        8.millis
-
-      private val casRetryMaxDelay: FiniteDuration =
-        250.millis
-
-      private val casRetryTimeout: FiniteDuration =
-        2.seconds
-
       /**
         * Delay before the next CAS retry, using exponential
-        * backoff with full jitter, capped at [[casRetryMaxDelay]].
+        * backoff with full jitter, capped at `casRetryPolicy.maxDelay`.
         */
       private def casRetryDelay(attempt: Int): F[FiniteDuration] =
         F.delay {
-          val exponentialNanos = (casRetryBaseDelay.toNanos * math.pow(2.0, attempt.toDouble)).toLong
-          val cappedNanos = math.min(exponentialNanos, casRetryMaxDelay.toNanos)
+          val baseNanos = casRetryPolicy.baseDelay.toNanos
+          val maxNanos = casRetryPolicy.maxDelay.toNanos
+          val exponentialNanos = (baseNanos * math.pow(2.0, attempt.toDouble)).toLong
+          val cappedNanos = math.min(exponentialNanos, maxNanos)
           val jitteredNanos = (cappedNanos * ThreadLocalRandom.current().nextDouble()).toLong
           FiniteDuration(jitteredNanos, NANOSECONDS)
         }
@@ -609,10 +653,10 @@ object Memcached {
                 }
             }
           },
-          casRetryTimeout,
+          casRetryPolicy.timeout,
           F.raiseError(
             MemcachedError(
-              s"modifyOption(key = $key) timed out after $casRetryTimeout due to CAS contention"
+              s"modifyOption(key = $key) timed out after ${casRetryPolicy.timeout} due to CAS contention"
             )
           )
         )
@@ -768,6 +812,15 @@ object Memcached {
     connectionFactory: ConnectionFactory
   )(
     implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    fromConnectionFactory(addresses, connectionFactory, CasRetryPolicy.default)
+
+  def fromConnectionFactory[F[_]](
+    addresses: String,
+    connectionFactory: ConnectionFactory,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
   ): Resource[F, Memcached[F]] = {
     val acquire: F[MemcachedClient] =
       F.blocking {
@@ -780,7 +833,7 @@ object Memcached {
     val release: MemcachedClient => F[Unit] =
       client => F.blocking(client.shutdown())
 
-    Resource.make(acquire)(release).map(fromClient[F])
+    Resource.make(acquire)(release).map(fromClient[F](_, casRetryPolicy))
   }
 
   def ketama[F[_]](
@@ -788,12 +841,27 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    ketama(addresses, CasRetryPolicy.default)
+
+  def ketama[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new KetamaConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def localhost[F[_]](
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
-    builder("localhost:11211")(_.setClientMode(ClientMode.Static))
+    localhost(CasRetryPolicy.default)
+
+  def localhost[F[_]](
+    casRetryPolicy: CasRetryPolicy
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    builder("localhost:11211", casRetryPolicy)(_.setClientMode(ClientMode.Static))
 }
