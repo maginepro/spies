@@ -16,6 +16,7 @@
 
 package spies
 
+import java.util.concurrent.ThreadLocalRandom
 import scala.concurrent.duration.*
 
 /**
@@ -54,6 +55,14 @@ object CasRetryPolicy {
       baseDelay = 8.millis,
       maxDelay = 250.millis,
       timeout = 2.seconds,
-      jitter = () => 0.5
+      /**
+        * ThreadLocalRandom.current().nextDouble() gives each thread
+        * its own generator instance with no shared mutable state, so
+        * there's zero cross-thread contention, and it also uses a
+        * better-mixing algorithm designed specifically to avoid
+        * correlation between threads (a real risk if you were to
+        * naively give each thread its own seeded java.util.Random).
+        */
+      jitter = () => ThreadLocalRandom.current().nextDouble()
     )
 }
