@@ -19,12 +19,13 @@ package spies
 import cats.effect.kernel.Async
 import cats.effect.kernel.Resource
 import cats.syntax.all.*
+import java.util.concurrent.ThreadLocalRandom
 import net.spy.memcached.*
 import net.spy.memcached.internal.GetFuture
 import net.spy.memcached.internal.OperationFuture
 import net.spy.memcached.ops.OperationStatus
 import net.spy.memcached.ops.StatusCode
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.*
 import spies.internal.expiry.*
 import spies.internal.future.*
 
@@ -548,6 +549,27 @@ object Memcached {
           (fa.tupleRight(expiry), fb)
         }
 
+      private val casRetryBaseDelay: FiniteDuration =
+        8.millis
+
+      private val casRetryMaxDelay: FiniteDuration =
+        250.millis
+
+      private val casRetryTimeout: FiniteDuration =
+        2.seconds
+
+      /**
+        * Delay before the next CAS retry, using exponential
+        * backoff with full jitter, capped at [[casRetryMaxDelay]].
+        */
+      private def casRetryDelay(attempt: Int): F[FiniteDuration] =
+        F.delay {
+          val exponentialNanos = (casRetryBaseDelay.toNanos * math.pow(2.0, attempt.toDouble)).toLong
+          val cappedNanos = math.min(exponentialNanos, casRetryMaxDelay.toNanos)
+          val jitteredNanos = (cappedNanos * ThreadLocalRandom.current().nextDouble()).toLong
+          FiniteDuration(jitteredNanos, NANOSECONDS)
+        }
+
       override def modifyOption[A, B](
         key: String
       )(
@@ -555,33 +577,45 @@ object Memcached {
       )(
         implicit codec: Codec[A]
       ): F[B] =
-        F.tailRecM(()) { _ =>
-          gets[A](key).flatMap {
-            case None =>
-              f(none) match {
-                case (Some((fa, expiry)), fb) =>
-                  add(key, fa, expiry).map {
-                    case false => Left(())
-                    case true => Right(fb)
-                  }
+        F.timeoutTo(
+          F.tailRecM(0) { attempt =>
+            gets[A](key).flatMap {
+              case None =>
+                f(none) match {
+                  case (Some((fa, expiry)), fb) =>
+                    add(key, fa, expiry).flatMap {
+                      case false =>
+                        casRetryDelay(attempt).flatMap(F.sleep).as(Left(attempt + 1))
+                      case true =>
+                        F.pure(Right(fb))
+                    }
 
-                case (None, fb) =>
-                  F.pure(Right(fb))
-              }
+                  case (None, fb) =>
+                    F.pure(Right(fb))
+                }
 
-            case Some((a, casId)) =>
-              f(a.some) match {
-                case (Some((fa, expiry)), fb) =>
-                  sets(key, fa, expiry, casId).map {
-                    case false => Left(())
-                    case true => Right(fb)
-                  }
+              case Some((a, casId)) =>
+                f(a.some) match {
+                  case (Some((fa, expiry)), fb) =>
+                    sets(key, fa, expiry, casId).flatMap {
+                      case false =>
+                        casRetryDelay(attempt).flatMap(F.sleep).as(Left(attempt + 1))
+                      case true =>
+                        F.pure(Right(fb))
+                    }
 
-                case (None, fb) =>
-                  F.pure(Right(fb))
-              }
-          }
-        }
+                  case (None, fb) =>
+                    F.pure(Right(fb))
+                }
+            }
+          },
+          casRetryTimeout,
+          F.raiseError(
+            MemcachedError(
+              s"modifyOption(key = $key) timed out after $casRetryTimeout due to CAS contention"
+            )
+          )
+        )
 
       override def set[A](
         key: String,
