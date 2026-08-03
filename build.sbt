@@ -48,7 +48,7 @@ lazy val core = crossProject(JVMPlatform)
   .jvmSettings(
     libraryDependencies ++= Seq(
       "com.amazonaws" % "elasticache-java-cluster-client" % elasticacheJavaClusterClientVersion,
-      "org.typelevel" %% "cats-effect-kernel" % catsEffectVersion,
+      "org.typelevel" %% "cats-effect-std" % catsEffectVersion,
       "org.slf4j" % "slf4j-nop" % slf4jVersion % Test,
       "org.testcontainers" % "testcontainers" % testcontainersVersion % Test,
       "org.typelevel" %% "munit-cats-effect" % munitCatsEffectVersion % Test,

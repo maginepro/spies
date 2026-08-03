@@ -16,47 +16,83 @@
 
 package spies
 
-import java.util.concurrent.ThreadLocalRandom
+import cats.Applicative
+import cats.effect.std.Random
+import cats.syntax.all.*
 import scala.concurrent.duration.*
+import scala.math.min
+import scala.math.pow
 
 /**
-  * Configuration for retrying check-and-set (CAS) operations,
-  * e.g. as part of `Memcached#modifyOption` and the methods
-  * built on top of it.
-  *
-  * Failed CAS attempts are retried using exponential backoff
-  * with full jitter, starting at `baseDelay` and capped at
-  * `maxDelay`. The overall retry loop is bounded by `timeout`.
+  * Retry policy for check-and-set (CAS) failures.
   */
-final case class CasRetryPolicy(
-  baseDelay: FiniteDuration,
-  maxDelay: FiniteDuration,
-  timeout: FiniteDuration,
-  jitter: () => Double
-) {
+trait CasRetryPolicy[F[_]] {
 
   /**
-    * Delay before the next CAS retry, using exponential
-    * backoff with jitter, capped at `maxDelay`.
+    * Returns the [[CasRetry]] retry decision when
+    * the specified number of check-and-set (CAS)
+    * attempts have failed.
+    *
+    * @param attempt the number of failed attempts, starting at 1
     */
-  def delayFor(attempt: Int): FiniteDuration = {
-    val baseNanos = baseDelay.toNanos
-    val maxNanos = maxDelay.toNanos
-    val exponentialNanos = (baseNanos * math.pow(2.0, attempt.toDouble)).toLong
-    val cappedNanos = math.min(exponentialNanos, maxNanos)
-    val jitteredNanos = (cappedNanos * jitter()).toLong
-    FiniteDuration(jitteredNanos, NANOSECONDS)
-  }
+  def apply(attempt: Int): F[CasRetry]
 }
 
 object CasRetryPolicy {
-  val default: CasRetryPolicy =
-    CasRetryPolicy(
-      baseDelay = 8.millis,
-      maxDelay = 250.millis,
-      timeout = 2.seconds,
-      // ThreadLocalRandom avoids the cross-thread contention and
-      // correlation risk of a shared or naively per-thread-seeded Random.
-      jitter = () => ThreadLocalRandom.current().nextDouble()
-    )
+
+  /**
+    * Returns the default retry policy, which uses
+    * a [[CasRetryPolicy.exponentialBackoff]] with
+    * a max wait of 250 millis and no retry limit.
+    */
+  def default[F[_]: Applicative: Random]: CasRetryPolicy[F] =
+    exponentialBackoff(250.millis, Int.MaxValue)
+
+  /**
+    * Returns a retry policy using jittered exponential
+    * backoff with the specified maximum wait time and
+    * maximum number of retries.
+    *
+    * @param maxWait the maximum time between retries
+    * @param maxRetries the maximum number of retries
+    */
+  def exponentialBackoff[F[_]: Applicative: Random](
+    maxWait: Duration,
+    maxRetries: Int
+  ): CasRetryPolicy[F] =
+    new CasRetryPolicy[F] {
+      private val maxWaitMillis: Double =
+        maxWait.toMillis.toDouble
+
+      override def apply(attempt: Int): F[CasRetry] =
+        if (attempt > maxRetries)
+          CasRetry.stop.pure
+        else
+          Random[F].nextDouble.map { jitter =>
+            val millis = (pow(2.0, attempt.toDouble) - 1.0) * 1000.0
+            val limitedMillis = min(millis, maxWaitMillis)
+            val jitteredMillis = (jitter * limitedMillis).toLong
+            val duration = FiniteDuration(jitteredMillis, MILLISECONDS)
+            CasRetry.wait(duration)
+          }
+    }
+
+  /**
+    * Returns a retry policy which stops and does not retry.
+    */
+  def stop[F[_]: Applicative]: CasRetryPolicy[F] =
+    new CasRetryPolicy[F] {
+      override def apply(attempt: Int): F[CasRetry] =
+        CasRetry.stop.pure
+    }
+
+  /**
+    * Returns a retry policy that always waits
+    * the specified duration between retries.
+    */
+  def wait[F[_]: Applicative](duration: FiniteDuration): CasRetryPolicy[F] =
+    new CasRetryPolicy[F] {
+      override def apply(attempt: Int): F[CasRetry] =
+        CasRetry.wait(duration).pure
+    }
 }
