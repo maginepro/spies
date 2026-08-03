@@ -27,19 +27,19 @@ import spies.internal.expiry.*
 
 trait TestMemcached[F[_]] extends Memcached[F] {
 
-  /*
-   * Returns the non-expired entries in the cache.
-   */
+  /**
+    * Returns the non-expired entries in the cache.
+    */
   def cached: F[Map[String, Entry]]
 }
 
 object TestMemcached {
 
-  /*
-   * The bytes and expiry time for some key in the cache.
-   *
-   * An `expiresAt` of `None` is used to denote no expiry time.
-   */
+  /**
+    * The bytes and expiry time for some key in the cache.
+    *
+    * An `expiresAt` of `None` is used to denote no expiry time.
+    */
   final case class Entry(bytes: Array[Byte], expiresAt: Option[Instant])
 
   def empty[F[_]](
@@ -47,13 +47,13 @@ object TestMemcached {
   ): F[TestMemcached[F]] =
     Ref.of(Map.empty[String, Entry]).map(fromRef[F])
 
-  /*
-   * Returns an in-memory cache based on the specified `Ref`.
-   *
-   * Cleanup of expired entries is only done whenever updates
-   * occur. Specifically, there is no automatic or otherwise
-   * scheduled cleanup.
-   */
+  /**
+    * Returns an in-memory cache based on the specified `Ref`.
+    *
+    * Cleanup of expired entries is only done whenever updates
+    * occur. Specifically, there is no automatic or otherwise
+    * scheduled cleanup.
+    */
   def fromRef[F[_]](
     ref: Ref[F, Map[String, Entry]]
   )(
@@ -103,9 +103,9 @@ object TestMemcached {
         else None
       }
 
-      /*
-       * Unsafe version of [[spies.internal.expiryTime]].
-       */
+      /**
+        * Unsafe version of [[spies.internal.expiryTime]].
+        */
       private def unsafeExpiryTime(duration: Duration, now: Instant): Int =
         if (duration == Duration.Inf || duration == Duration.Zero)
           0

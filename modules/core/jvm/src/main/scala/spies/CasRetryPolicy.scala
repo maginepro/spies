@@ -19,15 +19,15 @@ package spies
 import java.util.concurrent.ThreadLocalRandom
 import scala.concurrent.duration.*
 
-/*
- * Configuration for retrying check-and-set (CAS) operations,
- * e.g. as part of Memcached#modifyOption and the methods built
- * on top of it.
- *
- * Failed CAS attempts are retried using exponential backoff with
- * full jitter, starting at `baseDelay` and capped at `maxDelay`.
- * The overall retry loop is bounded by `timeout`.
- */
+/**
+  * Configuration for retrying check-and-set (CAS) operations,
+  * e.g. as part of [[Memcached#modifyOption]] and the methods
+  * built on top of it.
+  *
+  * Failed CAS attempts are retried using exponential backoff
+  * with full jitter, starting at `baseDelay` and capped at
+  * `maxDelay`. The overall retry loop is bounded by `timeout`.
+  */
 final case class CasRetryPolicy(
   baseDelay: FiniteDuration,
   maxDelay: FiniteDuration,
