@@ -21,7 +21,7 @@ import scala.concurrent.duration.*
 
 /**
   * Configuration for retrying check-and-set (CAS) operations,
-  * e.g. as part of [[Memcached#modifyOption]] and the methods
+  * e.g. as part of `Memcached#modifyOption` and the methods
   * built on top of it.
   *
   * Failed CAS attempts are retried using exponential backoff
