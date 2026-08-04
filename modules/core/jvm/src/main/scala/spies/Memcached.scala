@@ -625,9 +625,9 @@ object Memcached {
                   add(key, fa, expiry).flatMap {
                     case false =>
                       casRetryPolicy(attempt).flatMap {
-                        case CasRetry.Wait(duration) =>
+                        case Some(duration) =>
                           F.sleep(duration).as(Left(attempt + 1))
-                        case CasRetry.Stop =>
+                        case None =>
                           F.raiseError(
                             MemcachedError(
                               s"modifyOption(key = $key) retries stopped after $attempt attempts"
@@ -648,9 +648,9 @@ object Memcached {
                   sets(key, fa, expiry, casId).flatMap {
                     case false =>
                       casRetryPolicy(attempt).flatMap {
-                        case CasRetry.Wait(duration) =>
+                        case Some(duration) =>
                           F.sleep(duration).as(Left(attempt + 1))
-                        case CasRetry.Stop =>
+                        case None =>
                           F.raiseError(
                             MemcachedError(
                               s"modifyOption(key = $key) retries stopped after $attempt attempts"
