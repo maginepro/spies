@@ -77,7 +77,7 @@ object CasRetryPolicy {
       case attempts if attempts > maxRetries => none.pure
       case attempts =>
         Random[F].nextDouble.map { jitter =>
-          val delay = (baseDelay * pow(2, attempts)).min(maxDelay) * jitter
+          val delay = (baseDelay * pow(2.0, attempts.toDouble)).min(maxDelay) * jitter
           delay match {
             case finite: FiniteDuration => Some(finite)
             case _ => None
