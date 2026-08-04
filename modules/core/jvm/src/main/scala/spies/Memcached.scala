@@ -617,20 +617,20 @@ object Memcached {
       )(
         implicit codec: Codec[A]
       ): F[B] =
-        F.tailRecM(1) { attempt =>
+        F.tailRecM(1) { attempts =>
           gets[A](key).flatMap {
             case None =>
               f(none) match {
                 case (Some((fa, expiry)), fb) =>
                   add(key, fa, expiry).flatMap {
                     case false =>
-                      casRetryPolicy(attempt).flatMap {
+                      casRetryPolicy(attempts).flatMap {
                         case Some(duration) =>
-                          F.sleep(duration).as(Left(attempt + 1))
+                          F.sleep(duration).as(Left(attempts + 1))
                         case None =>
                           F.raiseError(
                             MemcachedError(
-                              s"modifyOption(key = $key) retries stopped after $attempt attempts"
+                              s"modifyOption(key = $key) retries stopped after $attempts attempts"
                             )
                           )
                       }
@@ -647,13 +647,13 @@ object Memcached {
                 case (Some((fa, expiry)), fb) =>
                   sets(key, fa, expiry, casId).flatMap {
                     case false =>
-                      casRetryPolicy(attempt).flatMap {
+                      casRetryPolicy(attempts).flatMap {
                         case Some(duration) =>
-                          F.sleep(duration).as(Left(attempt + 1))
+                          F.sleep(duration).as(Left(attempts + 1))
                         case None =>
                           F.raiseError(
                             MemcachedError(
-                              s"modifyOption(key = $key) retries stopped after $attempt attempts"
+                              s"modifyOption(key = $key) retries stopped after $attempts attempts"
                             )
                           )
                       }

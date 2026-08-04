@@ -29,15 +29,15 @@ import scala.math.pow
 trait CasRetryPolicy[F[_]] {
 
   /**
-    * Returns the duration to wait for, before the next
-    * retry, when the specified number of check-and-set
-    * (CAS) attempts have failed.
+    * Returns the delay to wait before the next retry.
+    *
+    * The number of failed retries is `attempts - 1`.
     *
     * If `None` is returned, retries should cease.
     *
-    * @param attempt the number of failed attempts, starting at 1
+    * @param attempts number of failed attempts, starting at 1
     */
-  def apply(attempt: Int): F[Option[FiniteDuration]]
+  def apply(attempts: Int): F[Option[FiniteDuration]]
 }
 
 object CasRetryPolicy {
@@ -51,42 +51,50 @@ object CasRetryPolicy {
   /**
     * Returns the default retry policy, which uses
     * a [[CasRetryPolicy.exponentialBackoff]] with
-    * a max wait of 250 millis and max 10 retries.
+    * a max delay of 250 millis and max 10 retries.
     */
   def default[F[_]: Applicative: Random]: CasRetryPolicy[F] =
-    exponentialBackoff(250.millis, 10)
+    exponentialBackoff(
+      baseDelay = 8.millis,
+      maxDelay = 250.millis,
+      maxRetries = 10
+    )
 
   /**
     * Returns a retry policy using jittered exponential
-    * backoff with the specified maximum wait time and
-    * maximum number of retries.
+    * backoff with the specified base and maximum delay
+    * and maximum number of retries.
     *
-    * @param maxWait the maximum time between retries
+    * @param baseDelay the exponentially increasing time
+    * @param maxDelay the maximum time between retries
     * @param maxRetries the maximum number of retries
     */
   def exponentialBackoff[F[_]: Applicative: Random](
-    maxWait: Duration,
+    baseDelay: FiniteDuration,
+    maxDelay: FiniteDuration,
     maxRetries: Int
   ): CasRetryPolicy[F] =
     new CasRetryPolicy[F] {
-      private val maxWaitMillis: Double =
-        maxWait.toMillis.toDouble
+      private val baseDelayMillis: Double =
+        baseDelay.toMillis.toDouble
 
-      override def apply(attempt: Int): F[Option[FiniteDuration]] =
-        if (attempt > maxRetries)
+      private val maxDelayMillis: Double =
+        maxDelay.toMillis.toDouble
+
+      override def apply(attempts: Int): F[Option[FiniteDuration]] =
+        if (attempts > maxRetries)
           none.pure
         else
           Random[F].nextDouble.map { jitter =>
-            val millis = (pow(2.0, attempt.toDouble) - 1.0) * 1000.0
-            val limitedMillis = min(millis, maxWaitMillis)
+            val millis = baseDelayMillis * pow(2.0, attempts.toDouble)
+            val limitedMillis = min(millis, maxDelayMillis)
             val jitteredMillis = (jitter * limitedMillis).toLong
             Some(FiniteDuration(jitteredMillis, MILLISECONDS))
           }
     }
 
   /**
-    * Returns a retry policy that always waits
-    * the specified duration between retries.
+    * Returns a retry policy that always waits the specified duration between retries.
     */
   def fixed[F[_]: Applicative](duration: FiniteDuration): CasRetryPolicy[F] =
     always(Some(duration))
@@ -96,8 +104,8 @@ object CasRetryPolicy {
     */
   def lift[F[_]](f: Int => F[Option[FiniteDuration]]): CasRetryPolicy[F] =
     new CasRetryPolicy[F] {
-      override def apply(attempt: Int): F[Option[FiniteDuration]] =
-        f(attempt)
+      override def apply(attempts: Int): F[Option[FiniteDuration]] =
+        f(attempts)
     }
 
   /**
