@@ -37,7 +37,7 @@ trait CasRetryPolicy[F[_]] {
     *
     * @param attempts number of failed attempts, starting at 1
     */
-  def apply(attempts: Int): F[Option[FiniteDuration]]
+  def delay(attempts: Int): F[Option[FiniteDuration]]
 }
 
 object CasRetryPolicy {
@@ -81,7 +81,7 @@ object CasRetryPolicy {
       private val maxDelayMillis: Double =
         maxDelay.toMillis.toDouble
 
-      override def apply(attempts: Int): F[Option[FiniteDuration]] =
+      override def delay(attempts: Int): F[Option[FiniteDuration]] =
         if (attempts > maxRetries)
           none.pure
         else
@@ -104,7 +104,7 @@ object CasRetryPolicy {
     */
   def lift[F[_]](f: Int => F[Option[FiniteDuration]]): CasRetryPolicy[F] =
     new CasRetryPolicy[F] {
-      override def apply(attempts: Int): F[Option[FiniteDuration]] =
+      override def delay(attempts: Int): F[Option[FiniteDuration]] =
         f(attempts)
     }
 
