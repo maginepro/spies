@@ -20,7 +20,6 @@ import cats.Applicative
 import cats.effect.std.Random
 import cats.syntax.all.*
 import scala.concurrent.duration.*
-import scala.math.min
 import scala.math.pow
 
 /**
@@ -71,26 +70,19 @@ object CasRetryPolicy {
     */
   def exponentialBackoff[F[_]: Applicative: Random](
     baseDelay: FiniteDuration,
-    maxDelay: FiniteDuration,
+    maxDelay: Duration,
     maxRetries: Int
   ): CasRetryPolicy[F] =
-    new CasRetryPolicy[F] {
-      private val baseDelayMillis: Double =
-        baseDelay.toMillis.toDouble
-
-      private val maxDelayMillis: Double =
-        maxDelay.toMillis.toDouble
-
-      override def delay(attempts: Int): F[Option[FiniteDuration]] =
-        if (attempts > maxRetries)
-          none.pure
-        else
-          Random[F].nextDouble.map { jitter =>
-            val millis = baseDelayMillis * pow(2.0, attempts.toDouble)
-            val limitedMillis = min(millis, maxDelayMillis)
-            val jitteredMillis = (jitter * limitedMillis).toLong
-            Some(FiniteDuration(jitteredMillis, MILLISECONDS))
+    lift {
+      case attempts if attempts > maxRetries => none.pure
+      case attempts =>
+        Random[F].nextDouble.map { jitter =>
+          val delay = (baseDelay * pow(2, attempts)).min(maxDelay) * jitter
+          delay match {
+            case finite: FiniteDuration => Some(finite)
+            case _ => None
           }
+        }
     }
 
   /**
