@@ -355,7 +355,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.ascii(addresses, CasRetryPolicy.default[F])
+      ascii(addresses, CasRetryPolicy.default[F])
     }
 
   def ascii[F[_]](
@@ -374,7 +374,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.binary(addresses, CasRetryPolicy.default[F])
+      binary(addresses, CasRetryPolicy.default[F])
     }
 
   def binary[F[_]](
@@ -395,7 +395,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.builder(addresses, CasRetryPolicy.default[F])(f)
+      builder(addresses, CasRetryPolicy.default[F])(f)
     }
 
   def builder[F[_]](
@@ -417,7 +417,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.fromBuilder(addresses, builder, CasRetryPolicy.default[F])
+      fromBuilder(addresses, builder, CasRetryPolicy.default[F])
     }
 
   def fromBuilder[F[_]](
@@ -436,7 +436,7 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): F[Memcached[F]] =
-    Random.scalaUtilRandom[F].map(implicit random => Memcached.fromClient(client, CasRetryPolicy.default[F]))
+    Random.scalaUtilRandom[F].map(implicit random => fromClient(client, CasRetryPolicy.default[F]))
 
   def fromClient[F[_]](
     client: MemcachedClient,
@@ -820,7 +820,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.fromConnectionFactory(addresses, connectionFactory, CasRetryPolicy.default[F])
+      fromConnectionFactory(addresses, connectionFactory, CasRetryPolicy.default[F])
     }
 
   def fromConnectionFactory[F[_]](
@@ -850,7 +850,7 @@ object Memcached {
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
     Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
-      Memcached.ketama(addresses, CasRetryPolicy.default[F])
+      ketama(addresses, CasRetryPolicy.default[F])
     }
 
   def ketama[F[_]](
