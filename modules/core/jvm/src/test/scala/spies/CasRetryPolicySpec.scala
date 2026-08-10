@@ -19,6 +19,7 @@ package spies
 import cats.effect.IO
 import munit.CatsEffectSuite
 import munit.ScalaCheckEffectSuite
+import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
 import org.scalacheck.effect.PropF
 import scala.concurrent.duration.*
@@ -26,10 +27,15 @@ import scala.math.pow
 
 final class CasRetryPolicySpec extends CatsEffectSuite with ScalaCheckEffectSuite {
   test("default.baseDelay") {
-    val gen = Gen.chooseNum(1, 10)
-    PropF.forAllNoShrinkF(gen) { attempts =>
+    val gen =
       for {
-        delay <- CasRetryPolicy.default[IO].delay(attempts)
+        key <- arbitrary[String]
+        attempts <- Gen.chooseNum(1, 10)
+      } yield (key, attempts)
+
+    PropF.forAllNoShrinkF(gen) { case (key, attempts) =>
+      for {
+        delay <- CasRetryPolicy.default[IO].delay(key, attempts)
         baseLimit = 8.millis * pow(2.0, attempts.toDouble)
         _ <- IO(assert(delay.exists(_ <= baseLimit)))
       } yield ()
@@ -37,20 +43,30 @@ final class CasRetryPolicySpec extends CatsEffectSuite with ScalaCheckEffectSuit
   }
 
   test("default.maxDelay") {
-    val gen = Gen.chooseNum(1, 10)
-    PropF.forAllNoShrinkF(gen) { attempts =>
+    val gen =
       for {
-        delay <- CasRetryPolicy.default[IO].delay(attempts)
+        key <- arbitrary[String]
+        attempts <- Gen.chooseNum(1, 10)
+      } yield (key, attempts)
+
+    PropF.forAllNoShrinkF(gen) { case (key, attempts) =>
+      for {
+        delay <- CasRetryPolicy.default[IO].delay(key, attempts)
         _ <- IO(assert(delay.exists(_ <= 250.millis)))
       } yield ()
     }
   }
 
   test("default.maxRetries") {
-    val gen = Gen.chooseNum(11, Int.MaxValue)
-    PropF.forAllNoShrinkF(gen) { attempts =>
+    val gen =
       for {
-        delay <- CasRetryPolicy.default[IO].delay(attempts)
+        key <- arbitrary[String]
+        attempts <- Gen.chooseNum(11, Int.MaxValue)
+      } yield (key, attempts)
+
+    PropF.forAllNoShrinkF(gen) { case (key, attempts) =>
+      for {
+        delay <- CasRetryPolicy.default[IO].delay(key, attempts)
         _ <- IO(assertEquals(delay, None))
       } yield ()
     }
