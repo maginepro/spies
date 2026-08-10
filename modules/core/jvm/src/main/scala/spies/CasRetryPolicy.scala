@@ -34,9 +34,10 @@ trait CasRetryPolicy[F[_]] {
     *
     * If `None` is returned, retries should cease.
     *
+    * @param key the key for which check-and-set (CAS) failed
     * @param attempts number of failed attempts, starting at 1
     */
-  def delay(attempts: Int): F[Option[FiniteDuration]]
+  def delay(key: String, attempts: Int): F[Option[FiniteDuration]]
 }
 
 object CasRetryPolicy {
@@ -45,7 +46,7 @@ object CasRetryPolicy {
     * Returns a retry policy that always returns the specified duration.
     */
   def always[F[_]: Applicative](duration: Option[FiniteDuration]): CasRetryPolicy[F] =
-    lift(_ => duration.pure)
+    lift { case _ => duration.pure }
 
   /**
     * Returns the default retry policy, which uses
@@ -74,8 +75,8 @@ object CasRetryPolicy {
     maxRetries: Int
   ): CasRetryPolicy[F] =
     lift {
-      case attempts if attempts > maxRetries => none.pure
-      case attempts =>
+      case (_, attempts) if attempts > maxRetries => none.pure
+      case (_, attempts) =>
         Random[F].nextDouble.map { jitter =>
           val delay = (baseDelay * pow(2.0, attempts.toDouble)).min(maxDelay) * jitter
           delay match {
@@ -94,10 +95,10 @@ object CasRetryPolicy {
   /**
     * Returns a retry policy from the specified function.
     */
-  def lift[F[_]](f: Int => F[Option[FiniteDuration]]): CasRetryPolicy[F] =
+  def lift[F[_]](f: (String, Int) => F[Option[FiniteDuration]]): CasRetryPolicy[F] =
     new CasRetryPolicy[F] {
-      override def delay(attempts: Int): F[Option[FiniteDuration]] =
-        f(attempts)
+      override def delay(key: String, attempts: Int): F[Option[FiniteDuration]] =
+        f(key, attempts)
     }
 
   /**

@@ -624,7 +624,7 @@ object Memcached {
                 case (Some((fa, expiry)), fb) =>
                   add(key, fa, expiry).flatMap {
                     case false =>
-                      casRetryPolicy.delay(attempts).flatMap {
+                      casRetryPolicy.delay(key, attempts).flatMap {
                         case Some(duration) =>
                           F.sleep(duration).as(Left(attempts + 1))
                         case None =>
@@ -647,7 +647,7 @@ object Memcached {
                 case (Some((fa, expiry)), fb) =>
                   sets(key, fa, expiry, casId).flatMap {
                     case false =>
-                      casRetryPolicy.delay(attempts).flatMap {
+                      casRetryPolicy.delay(key, attempts).flatMap {
                         case Some(duration) =>
                           F.sleep(duration).as(Left(attempts + 1))
                         case None =>
