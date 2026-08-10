@@ -18,13 +18,14 @@ package spies
 
 import cats.effect.kernel.Async
 import cats.effect.kernel.Resource
+import cats.effect.std.Random
 import cats.syntax.all.*
 import net.spy.memcached.*
 import net.spy.memcached.internal.GetFuture
 import net.spy.memcached.internal.OperationFuture
 import net.spy.memcached.ops.OperationStatus
 import net.spy.memcached.ops.StatusCode
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration.*
 import spies.internal.expiry.*
 import spies.internal.future.*
 
@@ -336,25 +337,55 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
-    ascii(addresses)
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      Memcached(addresses, CasRetryPolicy.default[F])
+    }
+
+  def apply[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    ascii(addresses, casRetryPolicy)
 
   def ascii[F[_]](
     addresses: String
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      ascii(addresses, CasRetryPolicy.default[F])
+    }
+
+  def ascii[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new DefaultConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def binary[F[_]](
     addresses: String
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      binary(addresses, CasRetryPolicy.default[F])
+    }
+
+  def binary[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new BinaryConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def builder[F[_]](
     addresses: String
@@ -363,9 +394,21 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      builder(addresses, CasRetryPolicy.default[F])(f)
+    }
+
+  def builder[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    f: ConnectionFactoryBuilder => ConnectionFactoryBuilder
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(f(new ConnectionFactoryBuilder)))
-      .flatMap(fromBuilder(addresses, _))
+      .flatMap(fromBuilder(addresses, _, casRetryPolicy))
 
   def fromBuilder[F[_]](
     addresses: String,
@@ -373,12 +416,31 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      fromBuilder(addresses, builder, CasRetryPolicy.default[F])
+    }
+
+  def fromBuilder[F[_]](
+    addresses: String,
+    builder: ConnectionFactoryBuilder,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(builder.build()))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def fromClient[F[_]](
     client: MemcachedClient
+  )(
+    implicit F: Async[F]
+  ): F[Memcached[F]] =
+    Random.scalaUtilRandom[F].map(implicit random => fromClient(client, CasRetryPolicy.default[F]))
+
+  def fromClient[F[_]](
+    client: MemcachedClient,
+    casRetryPolicy: CasRetryPolicy[F]
   )(
     implicit F: Async[F]
   ): Memcached[F] =
@@ -555,14 +617,25 @@ object Memcached {
       )(
         implicit codec: Codec[A]
       ): F[B] =
-        F.tailRecM(()) { _ =>
+        F.tailRecM(1) { attempts =>
           gets[A](key).flatMap {
             case None =>
               f(none) match {
                 case (Some((fa, expiry)), fb) =>
-                  add(key, fa, expiry).map {
-                    case false => Left(())
-                    case true => Right(fb)
+                  add(key, fa, expiry).flatMap {
+                    case false =>
+                      casRetryPolicy.delay(attempts).flatMap {
+                        case Some(duration) =>
+                          F.sleep(duration).as(Left(attempts + 1))
+                        case None =>
+                          F.raiseError(
+                            MemcachedError(
+                              s"modifyOption(key = $key) retries stopped after $attempts attempts"
+                            )
+                          )
+                      }
+                    case true =>
+                      F.pure(Right(fb))
                   }
 
                 case (None, fb) =>
@@ -572,9 +645,20 @@ object Memcached {
             case Some((a, casId)) =>
               f(a.some) match {
                 case (Some((fa, expiry)), fb) =>
-                  sets(key, fa, expiry, casId).map {
-                    case false => Left(())
-                    case true => Right(fb)
+                  sets(key, fa, expiry, casId).flatMap {
+                    case false =>
+                      casRetryPolicy.delay(attempts).flatMap {
+                        case Some(duration) =>
+                          F.sleep(duration).as(Left(attempts + 1))
+                        case None =>
+                          F.raiseError(
+                            MemcachedError(
+                              s"modifyOption(key = $key) retries stopped after $attempts attempts"
+                            )
+                          )
+                      }
+                    case true =>
+                      F.pure(Right(fb))
                   }
 
                 case (None, fb) =>
@@ -734,6 +818,17 @@ object Memcached {
     connectionFactory: ConnectionFactory
   )(
     implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      fromConnectionFactory(addresses, connectionFactory, CasRetryPolicy.default[F])
+    }
+
+  def fromConnectionFactory[F[_]](
+    addresses: String,
+    connectionFactory: ConnectionFactory,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
   ): Resource[F, Memcached[F]] = {
     val acquire: F[MemcachedClient] =
       F.blocking {
@@ -746,7 +841,7 @@ object Memcached {
     val release: MemcachedClient => F[Unit] =
       client => F.blocking(client.shutdown())
 
-    Resource.make(acquire)(release).map(fromClient[F])
+    Resource.make(acquire)(release).map(fromClient[F](_, casRetryPolicy))
   }
 
   def ketama[F[_]](
@@ -754,12 +849,29 @@ object Memcached {
   )(
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap { implicit random =>
+      ketama(addresses, CasRetryPolicy.default[F])
+    }
+
+  def ketama[F[_]](
+    addresses: String,
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
     Resource
       .eval(F.delay(new KetamaConnectionFactory))
-      .flatMap(fromConnectionFactory(addresses, _))
+      .flatMap(fromConnectionFactory(addresses, _, casRetryPolicy))
 
   def localhost[F[_]](
     implicit F: Async[F]
   ): Resource[F, Memcached[F]] =
-    builder("localhost:11211")(_.setClientMode(ClientMode.Static))
+    Resource.eval(Random.scalaUtilRandom[F]).flatMap(implicit random => localhost(CasRetryPolicy.default[F]))
+
+  def localhost[F[_]](
+    casRetryPolicy: CasRetryPolicy[F]
+  )(
+    implicit F: Async[F]
+  ): Resource[F, Memcached[F]] =
+    builder("localhost:11211", casRetryPolicy)(_.setClientMode(ClientMode.Static))
 }
