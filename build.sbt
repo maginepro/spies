@@ -8,7 +8,7 @@ val munitScalaCheckVersion = "1.3.1"
 val scala213Version = "2.13.18"
 val scala3Version = "3.3.8"
 val scalaCheckEffectMunitVersion = "2.1.0"
-val slf4jVersion = "2.0.18"
+val slf4jVersion = "2.0.19"
 val testcontainersVersion = "2.0.5"
 
 inThisBuild(
